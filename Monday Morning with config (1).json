@@ -1,0 +1,924 @@
+{
+  "name": "Monday Morning with config",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        976,
+        -320
+      ],
+      "id": "21f89f37-21c9-4ee6-a332-bcaa432fb04c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "tzNsScKnNcw0uTfy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.status }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Our e-commerce store sales just dropped by {{ $json.sales_change }}%. Current sales are ${{ $json.current_sales }}. Based on this, write a professional and iinternal update to clients as shown in my example output below. Focus on being calm and data-driven. DO NOT EVER MAKE UP DATA OR INFORMATION. \n\nExample output: \n\"Good Monday,\n\nWe detected a 10% or greater change in revenue compared to last week. Our e-commerce store sales just dropped by {{ $json.sales_change }}%. Current sales are ${{ $json.current_sales }}. We are aware of this discrepancy and will investigate it today\""
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        912,
+        -464
+      ],
+      "id": "62781ecf-db8b-468a-8a63-8a254874e799",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "sendTo": "=={{ $('Config').first().json.alert_email }}",
+        "subject": "=={{ $('Config').first().json.email_subject_alert }}",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -464
+      ],
+      "id": "57761236-ae64-4175-abfd-aad7a299f933",
+      "name": "Send a message",
+      "webhookId": "20558095-3ec3-4219-a2dc-91db20c8b40a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// SALES ANALYSIS & ANOMALY DETECTION MODULE\n// ============================================\n\n// Retrieve all input items from CSV extraction\nconst items = Object.values($input.all());\n\n// Fetch configurable threshold from Config node\nconst threshold = $('Config').first().json.alert_threshold;\n\n// --------------------------------------------\n// INPUT VALIDATION: Verify data presence\n// --------------------------------------------\nif (!items || items.length === 0) {\n  throw new Error('No data received from CSV');\n}\n\n// --------------------------------------------\n// DATA TRANSFORMATION: Parse and validate each row\n// --------------------------------------------\nconst cleanData = items.map((item, index) => {\n  const sales = parseFloat(item.json.Sales);\n  const date = new Date(item.json.Date);\n  \n  // Validate sales field is numeric\n  if (isNaN(sales)) {\n    throw new Error(`Row ${index + 1}: Invalid sales value`);\n  }\n  \n  // Validate date field is parseable\n  if (isNaN(date.getTime())) {\n    throw new Error(`Row ${index + 1}: Invalid date format`);\n  }\n  \n  return { sales, date };\n});\n\n// --------------------------------------------\n// EDGE CASE: Insufficient data for comparison\n// --------------------------------------------\nif (cleanData.length < 2) {\n  return {\n    current_sales: cleanData[0]?.sales.toFixed(2) || 0,\n    sales_change: 0,\n    status: 'INSUFFICIENT_DATA',\n    error: 'Need at least 2 weeks of data for comparison'\n  };\n}\n\n// --------------------------------------------\n// DATA PROCESSING: Sort chronologically and extract values\n// --------------------------------------------\ncleanData.sort((a, b) => a.date - b.date);\nconst currentSales = cleanData[cleanData.length - 1].sales;\nconst prevSales = cleanData[cleanData.length - 2].sales;\n\n// --------------------------------------------\n// EDGE CASE: Zero baseline prevents percentage calculation\n// --------------------------------------------\nif (prevSales === 0) {\n  return {\n    current_sales: currentSales.toFixed(2),\n    sales_change: 'N/A',\n    status: 'BASELINE_ZERO',\n    error: 'Previous week had $0 sales - cannot calculate percentage'\n  };\n}\n\n// --------------------------------------------\n// ANALYSIS: Calculate change and determine alert status\n// --------------------------------------------\nconst salesChange = ((currentSales - prevSales) / prevSales) * 100;\nconst status = salesChange < threshold ? 'VERIFY' : 'STABLE';\n\n// --------------------------------------------\n// OUTPUT: Return structured analysis object\n// --------------------------------------------\nreturn {\n  current_sales: currentSales.toFixed(2),\n  previous_sales: prevSales.to"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -224
+      ],
+      "id": "16cbd611-182d-4991-8415-0d18cf2ca524",
+      "name": "Code in JavaScript",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "continued on error"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour",
+              "minute": 5
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "subject:\"Weekly Amazon .csv Report\" has:attachment",
+          "sender": "stpolino@gmail.com"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        -368
+      ],
+      "id": "0b464be5-4303-433d-8a45-eaf628594962",
+      "name": "Gmail Trigger",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "attachment_0",
+        "options": {
+          "delimiter": ",",
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        -160
+      ],
+      "id": "96c3b935-e35a-41e4-a4b3-24f880dc50f5",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        496,
+        -368
+      ],
+      "id": "b284fd23-4c65-4830-b2f4-729aad0cd6f6",
+      "name": "Get a message",
+      "webhookId": "832bf4eb-0c3c-4657-8a93-375ff318a92f",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "VERIFY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b39dddad-b3e2-48a5-866c-ef5b8f549d94"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4a467eb3-f4e7-4e3e-b376-6129966b8907",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "INSUFFICIENT_DATA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bab1a4ca-b920-4dca-b169-046da77aef96",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "BASELINE_ZERO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "230324cf-2042-48c6-867a-65d54e0c17d4",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "STABLE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        816,
+        -256
+      ],
+      "id": "98a7fc91-23aa-41b7-991b-98b92dd4495e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "sendTo": "=={{ $('Config').first().json.alert_email }}",
+        "subject": "=={{ $('Config').first().json.email_subject_insufficient }}",
+        "message": "=={{ $json.error }}. Only {{ $json.current_sales }} recorded. Please verify your CSV.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -320
+      ],
+      "id": "1d78f34c-1d01-4f8b-9594-cbf92cb23c78",
+      "name": "Insufficient Data Error",
+      "webhookId": "7055b872-4786-4891-9866-cb16ec870960",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=={{ $('Config').first().json.alert_email }}",
+        "subject": "=={{ $('Config').first().json.email_subject_zero }}",
+        "message": "=={{ $json.error }}. Current sales: ${{ $json.current_sales }}. Percentage change cannot be calculated when previous week. Please verify your CSV.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -160
+      ],
+      "id": "824c72f5-d9fc-42b6-9b97-a1dcf1cb4713",
+      "name": "BASELINE ZERO Error",
+      "webhookId": "e4e3bcd9-8aa3-44c3-9c2b-8f959586ee6c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI",
+          "mode": "list",
+          "cachedResultName": "n8n Monday Logging",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "=={{ $json.log_status }}",
+            "Current Sales": "=={{ $json.current_sales }}",
+            "Previous Sales": "=={{ $json.previous_sales }}",
+            "Change %": "=={{ $json.sales_change }}",
+            "Timestamp": "=={{ $json.timestamp }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Sales",
+              "displayName": "Current Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Previous Sales",
+              "displayName": "Previous Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Change %",
+              "displayName": "Change %",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        -16
+      ],
+      "id": "9e3e0abe-86dd-4cd2-ab4a-9fdfc9b38c0e",
+      "name": "Log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OhgqwaGvA8OBhjWm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI",
+          "mode": "list",
+          "cachedResultName": "n8n Monday Logging",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1585634956,
+          "mode": "list",
+          "cachedResultName": "Error Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit#gid=1585634956"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "=={{ $json.log_status }}",
+            "Current Sales": "=={{ $json.current_sales }}",
+            "Timestamp": "=={{ $json.timestamp }}",
+            "Error Message": "=={{ $json.error }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Sales",
+              "displayName": "Current Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        -320
+      ],
+      "id": "d69cffd8-130e-4be0-928e-2dd7e080390c",
+      "name": "Error Log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OhgqwaGvA8OBhjWm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI",
+          "mode": "list",
+          "cachedResultName": "n8n Monday Logging",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1585634956,
+          "mode": "list",
+          "cachedResultName": "Error Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit#gid=1585634956"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "=={{ $json.log_status }}",
+            "Current Sales": "=={{ $json.current_sales }}",
+            "Timestamp": "=={{ $json.timestamp }}",
+            "Error Message": "=={{ $json.error }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Sales",
+              "displayName": "Current Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        -160
+      ],
+      "id": "cf56c9b4-40f6-4dd7-8456-7c977b09bc1e",
+      "name": "Error Log1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OhgqwaGvA8OBhjWm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI",
+          "mode": "list",
+          "cachedResultName": "n8n Monday Logging",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 395062173,
+          "mode": "list",
+          "cachedResultName": "LOG Urgent WoW Changes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19f6Mm-hqD4dq6JEqHYDxotwnzXXDMH2zCDYhdCUTJxI/edit#gid=395062173"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "=={{ $json.log_status }}",
+            "Current Sales": "=={{ $json.current_sales }}",
+            "Previous Sales": "=={{ $json.previous_sales }}",
+            "Change %": "=={{ $json.sales_change }}",
+            "Timestamp": "=={{ $json.timestamp }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Sales",
+              "displayName": "Current Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Previous Sales",
+              "displayName": "Previous Sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Change %",
+              "displayName": "Change %",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1216,
+        -624
+      ],
+      "id": "16ba2ce4-b642-4fb9-aef9-b4a51dfcfab7",
+      "name": "Log URGENT WoW changes",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OhgqwaGvA8OBhjWm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5516c287-8dba-4224-b22a-766046702162",
+              "name": "alert_threshold",
+              "value": -10,
+              "type": "number"
+            },
+            {
+              "id": "ae3f0330-3e1c-42a6-972f-a17e776bf08c",
+              "name": "alert_email",
+              "value": "Stpolino@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "1daf51ff-b03d-4f66-ac40-8dbe37af1978",
+              "name": "email_subject_alert",
+              "value": "URGENT: Sales Performance Alert",
+              "type": "string"
+            },
+            {
+              "id": "b29b29f2-6e17-48f2-8990-9a8715f29682",
+              "name": "email_subject_insufficient",
+              "value": "⚠️ Data Alert: Insufficient Sales Data",
+              "type": "string"
+            },
+            {
+              "id": "c20c30c7-e5cc-4883-b18d-e47b873b156c",
+              "name": "email_subject_zero",
+              "value": "⚠️ Data Alert: Zero Baseline Detected",
+              "type": "string"
+            },
+            {
+              "id": "c99245e4-39e7-487a-88e6-f4b7111e4926",
+              "name": "log_sheet_name",
+              "value": "Sales Monitor Log",
+              "type": "string"
+            },
+            {
+              "id": "d20be7b6-96a5-4ff3-958e-7db83b02bdbb",
+              "name": "slack_webhook_url",
+              "value": "YOUR_SLACK_WEBHOOK_HERE",
+              "type": "string"
+            },
+            {
+              "id": "0dabeff5-0449-4ca1-9562-58779767efab",
+              "name": "slack_channel",
+              "value": "YOUR_SLACK_CHANNEL_HERE",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        336,
+        -368
+      ],
+      "id": "ac095887-8fea-4849-b055-9190173069d7",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $('Config').first().json.hooks.slack.com/services/YOUR_SLACK_WEBHOOK_HERE}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"text\": \"🚨 *Sales Alert*\\n\\n{{ $json.text }}\\n\\n_Sent via Monday Morning Pipeline_\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1424,
+        -496
+      ],
+      "id": "fed50fd2-bba0-4b83-bb76-a03c3d2afedc",
+      "name": "HTTP Request to SLACK"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log URGENT WoW changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insufficient Data Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "BASELINE ZERO Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insufficient Data Error": {
+      "main": [
+        [
+          {
+            "node": "Error Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BASELINE ZERO Error": {
+      "main": [
+        [
+          {
+            "node": "Error Log1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request to SLACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "0465aee5-f1ee-47c9-80ce-5717ac891186",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "36c00d3629e4211cbe981056a11ed6de5afb3a446e48a3fed40620ee80f59f1a"
+  },
+  "id": "LicVLNw4T1Ia2mmc",
+  "tags": []
+}
