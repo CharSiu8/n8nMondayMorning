@@ -743,7 +743,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=={{ $('Config').first().json.hooks.slack.com/services/YOUR_SLACK_WEBHOOK_HERE}}",
+        "url": "={{ $('Config').first().json.slack_webhook_url }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\"text\": \"🚨 *Sales Alert*\\n\\n{{ $json.text }}\\n\\n_Sent via Monday Morning Pipeline_\"}",
