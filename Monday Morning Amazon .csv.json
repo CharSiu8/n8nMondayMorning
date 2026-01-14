@@ -1,0 +1,304 @@
+{
+  "name": "Monday Morning Amazon .csv",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f0707e8f-75b7-4320-8191-2f1de5e5c265",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "VERIFY",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "2541e87f-2bee-454c-8f2e-d7483c91d2d1",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        -224
+      ],
+      "id": "c8260913-b246-41d8-92cb-e7bc88f8e3a7",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        848,
+        -96
+      ],
+      "id": "24869b7e-6b4f-4c55-9849-6f54fda6808a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "tzNsScKnNcw0uTfy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.status }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Our e-commerce store sales just dropped by {{ $json.sales_change }}%. Current sales are ${{ $json.current_sales }}. Based on this, write a professional and iinternal update to clients as shown in my example output below. Focus on being calm and data-driven. DO NOT EVER MAKE UP DATA OR INFORMATION. \n\nExample output: \n\"Good Monday,\n\nWe detected a 10% or greater change in revenue compared to last week. Our e-commerce store sales just dropped by {{ $json.sales_change }}%. Current sales are ${{ $json.current_sales }}. We are aware of this discrepancy and will investigate it today\""
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        832,
+        -240
+      ],
+      "id": "4b853c51-e9ee-4b32-9a11-977b198a2ebb",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "sendTo": "Stpolino@gmail.com",
+        "subject": "URGENT: Sales Performance Alert",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -240
+      ],
+      "id": "df3fb285-0312-48ba-a31c-e8b0379f2ef7",
+      "name": "Send a message",
+      "webhookId": "84517231-1b77-4a98-ac5f-f8fe7cc940d4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get all rows from the Google Sheets node\nconst items = Object.values($input.all());\n\n// 2. Map the data to make it easier to work with\nconst cleanData = items.map(item => ({\n  sales: parseFloat(item.json.Sales),\n  date: new Date(item.json.Date)\n}));\n\n// 3. Sort by date (oldest to newest) to ensure WoW is correct\ncleanData.sort((a, b) => a.date - b.date);\n\n// 4. Get the last two entries\nif (cleanData.length >= 2) {\n  const currentSales = cleanData[cleanData.length - 1].sales;\n  const prevSales = cleanData[cleanData.length - 2].sales;\n  \n  // 5. Calculate percentage change\n  let salesChange = 0;\n  if (prevSales !== 0) {\n    salesChange = ((currentSales - prevSales) / prevSales) * 100;\n  }\n\n  // 6. Set status\n  const status = salesChange < -10 ? 'VERIFY' : 'STABLE';\n\n  return {\n    current_sales: currentSales.toFixed(2),\n    sales_change: salesChange.toFixed(2),\n    status: status\n  };\n} else {\n  return {\n    current_sales: 0,\n    sales_change: 0,\n    status: 'NEED MORE DATA'\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -224
+      ],
+      "id": "e17648a4-2212-4f96-8c07-37d63db0308a",
+      "name": "Code in JavaScript",
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "continued on error"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour",
+              "minute": 5
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "subject:\"Weekly Amazon .csv Report\" has:attachment",
+          "sender": "stpolino@gmail.com"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        -368
+      ],
+      "id": "ea5c0b41-47c2-4091-8396-94762844137e",
+      "name": "Gmail Trigger",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "attachment_0",
+        "options": {
+          "delimiter": ",",
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        -160
+      ],
+      "id": "b5b5385a-e9a0-4ed2-8f88-c4db14b0a717",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        -368
+      ],
+      "id": "e8e366e4-c315-4bb6-8cc3-4d7e177a6ed5",
+      "name": "Get a message",
+      "webhookId": "52300a26-f1d5-4d6d-81cf-a790188fec15",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "v5sQTEfHU30NZt8n",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "46eb0c93-c482-44f3-a087-63135c5ed4e8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "36c00d3629e4211cbe981056a11ed6de5afb3a446e48a3fed40620ee80f59f1a"
+  },
+  "id": "KLCB6WSD6PYpSAHL",
+  "tags": []
+}
