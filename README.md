@@ -28,3 +28,9 @@ n8n, OpenAI API (GPT-4.1-mini), Gmail API, Google Sheets API, Slack Webhooks, Ja
 2. Connect your credentials (Gmail, Google Sheets, OpenAI)
 3. Update the Config node with your email, Slack webhook, and threshold
 4. Activate the workflow
+
+5. ## License
+
+AGPL-3.0 — Free for personal and educational use.
+
+For commercial licensing, contact: [your email]
